@@ -221,7 +221,6 @@ function ThirdYear() {
           >
             {videosData
               .slice()
-              .reverse()
               .map((video, index) => (
                 <Col
                   key={index}
