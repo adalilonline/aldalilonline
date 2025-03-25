@@ -15,19 +15,19 @@ import Box2 from './components/Box2';
 import Box3 from './components/Box3';
 import Box4 from './components/Box4';
 
-// المكوّنات الجديدة الخاصة بمحتوى الصف الأول
+// المكوّنات الخاصة بمحتوى الصف الأول
 import VideosGrade1 from './contents/grade1/VideosGrade1';
 import FilesGrade1 from './contents/grade1/FilesGrade1';
 import HomeworkGrade1 from './contents/grade1/HomeworkGrade1';
 import ExamsGrade1 from './contents/grade1/ExamsGrade1';
 
-// المكوّنات الجديدة الخاصة بمحتوى الصف الثاني
+// المكوّنات الخاصة بمحتوى الصف الثاني
 import VideosGrade2 from './contents/grade2/VideosGrade2';
 import FilesGrade2 from './contents/grade2/FilesGrade2';
 import HomeworkGrade2 from './contents/grade2/HomeworkGrade2';
 import ExamsGrade2 from './contents/grade2/ExamsGrade2';
 
-// المكوّنات الجديدة الخاصة بمحتوى الصف الثالث
+// المكوّنات الخاصة بمحتوى الصف الثالث
 import VideosGrade3 from './contents/grade3/VideosGrade3';
 import FilesGrade3 from './contents/grade3/FilesGrade3';
 import HomeworkGrade3 from './contents/grade3/HomeworkGrade3';
@@ -45,14 +45,25 @@ function App() {
   const [loadingUser, setLoadingUser] = useState(true);
   const [usersData, setUsersData] = useState([]);
 
-  // قراءة currentUser من LocalStorage
-  useEffect(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
-    setLoadingUser(false);
-  }, []);
+  // دالة لاستخراج كود المستخدم من الـ username
+  const getUserCode = (username) => {
+    const match = username?.match(/\d+/);
+    return match ? parseInt(match[0], 10) : null;
+  };
+
+  // دالة لتحديد المسار الصحيح بناءً على الكود
+  const getRedirectPathForUser = (user) => {
+    if (!user) return '/login';
+    
+    if (user.isAdmin) return '/admin-dashboard';
+    
+    const code = getUserCode(user.username);
+    if (code >= 1001 && code <= 2000) return '/first-year';
+    if (code >= 2001 && code <= 3000) return '/second-year';
+    if (code >= 3001 && code <= 4000) return '/third-year';
+    
+    return '/login';
+  };
 
   // جلب بيانات المستخدمين
   const fetchUsersFromGitHub = useCallback(async () => {
@@ -66,11 +77,17 @@ function App() {
     }
   }, []);
 
-  // دالة لاستخراج كود المستخدم من الـ username
-  const getUserCode = (username) => {
-    const match = username?.match(/\d+/);
-    return match ? parseInt(match[0], 10) : null;
-  };
+  // قراءة currentUser من LocalStorage
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    setLoadingUser(false);
+    
+    // تحميل بيانات المستخدمين
+    fetchUsersFromGitHub();
+  }, [fetchUsersFromGitHub]);
 
   // التحقق من أي سنة ينتمي إليها المستخدم
   const isFirstYear = () => {
@@ -89,10 +106,20 @@ function App() {
     return code >= 3001 && code <= 4000;
   };
 
+  // مكوّن إعادة التوجيه الرئيسي
+  function HomeRedirect() {
+    if (loadingUser) {
+      return <div className="text-center p-5">جاري التحميل...</div>;
+    }
+    
+    const redirectPath = getRedirectPathForUser(currentUser);
+    return <Navigate to={redirectPath} replace />;
+  }
+
   // مكوّن حماية للسنوات (للطلاب)
   function ProtectedRoute({ children, allowedCheck }) {
     if (loadingUser) {
-      return null; // أو يمكن إرجاع شاشة تحميل
+      return <div className="text-center p-5">جاري التحميل...</div>;
     }
     if (!currentUser || !allowedCheck()) {
       return <Navigate to="/login" replace />;
@@ -103,7 +130,7 @@ function App() {
   // مكوّن حماية للأدمن
   function AdminProtectedRoute({ children }) {
     if (loadingUser) {
-      return null;
+      return <div className="text-center p-5">جاري التحميل...</div>;
     }
     if (!currentUser || !currentUser.isAdmin) {
       return <Navigate to="/login" replace />;
@@ -113,14 +140,26 @@ function App() {
 
   return (
     <Router>
-      {/* إخفاء النافبار في صفحات معينة */}
-      {(window.location.pathname !== '/login' && window.location.pathname !== '/starting') && (
+      {/* إخفاء النافبار في صفحة تسجيل الدخول فقط */}
+      {window.location.pathname !== '/login' && (
         <NavbarCustom currentUser={currentUser} setCurrentUser={setCurrentUser} />
       )}
 
       <Routes>
-        <Route path="/" element={<Starting />} />
+        {/* الصفحة الرئيسية تفحص حالة المستخدم */}
+        <Route path="/" element={
+          loadingUser ? (
+            <div className="text-center p-5">جاري التحميل...</div>
+          ) : currentUser ? (
+            <Navigate to={getRedirectPathForUser(currentUser)} replace />
+          ) : (
+            <Navigate to="/starting" replace />
+          )
+        } />
+        
+        {/* صفحة البداية - نعرضها للمستخدمين غير المسجلين */}
         <Route path="/starting" element={<Starting />} />
+        
         <Route
           path="/login"
           element={
@@ -276,9 +315,7 @@ function App() {
           }
         />
 
-        {/* =============================
-            مسارات صفحات الأدمن للصفوف
-            ============================= */}
+        {/* مسارات صفحات الأدمن للصفوف */}
         <Route
           path="/admin-first-year"
           element={
